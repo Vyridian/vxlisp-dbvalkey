@@ -1,0 +1,206 @@
+(package vx/db/valkey)
+
+(type valany : struct
+ :properties
+  [id    : string
+   bprop : boolean
+   iprop : int
+   fprop : float
+   dprop : decimal
+   sprop : string
+   aprop : any
+   lprop : list
+   mprop : map]
+ :doc "A model type that can be converted to valkey")
+
+(type valkey
+ :allowtypes
+  [string
+   stringlist
+   stringmap]
+ :doc "Type representing a single valkey value")
+
+(type valkeydb : struct
+ :doc "A reference to a valkey database.")
+
+(type valkeymap : map
+ :allowtypes [valkey]
+ :doc "A map holding valkeys. Essentially a valkey database.")
+
+(func any<-valkeymap-key : valkeymap
+ :doc "Retrieve an entry from a valkeymap.")
+
+(func any-read<-valkeydb-key : valkeymap
+ :context
+ :doc "Retrieve an entry from a valkeymap.")
+
+(func boolean-write<-valkeydb-valkeymap : boolean
+ :async
+ :context
+ :doc "Writes a valkeymap of values to the valkeydb")
+
+(func testprog : string
+ (switch : string
+  (case "a" "k:")
+  (case "b" "k:")))
+
+(func string-val<-any : string
+ [value : any]
+ (let : string
+  [type : any := (type<-any value)
+   extend : string := (extends<-any value)]
+  (switch : string
+   extend
+   (case "list" "k:")
+   (case "map" "k:")
+   (case "struct" "k:")
+   (else
+    (switch : string
+     type
+     (case boolean
+      (string "b:" (string<-any value)))
+     (case int
+      (string "i:" (string<-any value)))
+     (case float
+      (string "f:" (string<-any value)))
+     (case decimal
+      (string "d:" (string<-any value)))
+     (case string
+      (string "s:" (string<-any value)))
+     (else
+      "err:")))))
+ :test (test
+        "c:vx/core/true"
+        (string-val<-any true))
+       (test
+        "i:2"
+        (string-val<-any 2))
+       (test
+        "f:2.5"
+        (string-val<-any 2.5))
+       (test
+        "d:3.5"
+        (string-val<-any (decimal "3.5")))
+       (test
+        "s:sval"
+        (string-val<-any "sval"))
+       (test
+        "k:"
+        (string-val<-any
+         (anylist
+          4 "L2")))
+       (test
+        "k:"
+        (string-val<-any
+         (anymap
+          :a 5
+          :b "Mb")))
+ :doc "Returns a valkey ready string")
+
+(func stringmap-val<-map : stringmap
+ [mapany : map]
+ (map<-map : stringmap
+  mapany
+  (fn : string
+   [key      : string
+    subvalue : any]
+   (string-val<-any subvalue)))
+ :test (test
+        (stringmap
+         :id "s:myid"
+         :bprop "c:vx/core/true"
+         :iprop "i:2"
+         :fprop "f:2.5"
+         :dprop "d:3.5"
+         :sprop "s:sval"
+         :lprop ":"
+         :mprop ":")
+        (stringmap-val<-map
+         (map
+          :id "myid"
+          :bprop true
+          :iprop 2
+          :fprop 2.5
+          :dprop (decimal "3.5")
+          :sprop "sval"
+          :lprop
+           (anylist
+            4 "L2")
+          :mprop
+           (anymap
+            :a 5
+            :b "Mb"))))
+ :doc "Returns a valkey ready stringmap")
+
+(func valkeymap<-any : valkeymap
+ [value : any]
+ (switch : valkeymap
+  (extends<-any value)
+  (case ":list" (valkeymap<-list (any<-any value)))
+  (case ":map"  (valkeymap<-map  (any<-any value)))
+  (case ":struct" (valkeymap<-struct (any<-any value)))
+ )
+ :doc "Convert any into a valkeymap.")
+
+(func valkeymap<-any-orig : valkeymap
+ :doc "Convert changes from orig to any into a valkeymap.")
+
+(func valkeymap<-list : valkeymap
+ [value : list]
+ :doc "Convert a list of any into a valkeymap.")
+
+(func valkeymap<-map : valkeymap
+ [value : map]
+ :doc "Convert a map of any into a valkeymap.")
+
+(func valkeymap<-struct : valkeymap
+ [value : struct]
+ (let : valkeymap
+  [id : string :=
+    (any<-struct value :id)
+   mapany : anymap :=
+    (map<-struct value)
+   stringmap : stringmap :=
+    (stringmap-val<-map mapany)
+   mainmap : valkeymap :=
+    (valkeymap
+     id stringmap)]
+   mainmap)
+ :test (test
+        (valkeymap
+         :vx/db/valkey/valkey/valany::myid
+          (stringmap
+           :id "s:myid"
+           :bprop "c:vx/core/true"
+           :iprop "i:2"
+           :fprop "f:2.5"
+           :dprop "d:3.5"
+           :sprop "s:sval"
+           :lprop "k:"
+           :mprop "k:")
+        :vx/db/valkey/valkey/valany:lprop::myid
+         (stringlist
+          "i:4" "s:l2")
+        :vx/db/valkey/valkey/valany:mprop::myid
+         (stringmap 
+          :a "i:5"
+          :b "s:Mb"))
+        (valkeymap<-struct
+         (valany
+          :id "myid"
+          :bprop true
+          :iprop 2
+          :fprop 2.5
+          :dprop (decimal "3.5")
+          :sprop "sval"
+          :lprop
+           (anylist
+            4 "L2")
+          :mprop
+           (anymap
+            :a 5
+            :b "Mb"))))
+ :doc "Convert a map of any into a valkeymap.")
+
+(func valkeymap-log<-any-orig : valkeymap
+ :doc "Convert changes from orig to any into a log valkeymap.")
